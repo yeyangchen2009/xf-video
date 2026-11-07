@@ -2,7 +2,11 @@
 
 `xf-video` 是面向本人已获授权内容的小鹅通、飞书视频下载 CLI。日常命令使用 **`xfv`**，完整命令 `xf-video` 等价。
 
-> 当前为发布前源码。支持范围以实际验收结果为准，不提供 DRM、验证码或权限绕过。
+- npm 包：<https://www.npmjs.com/package/xf-video>
+- 源码仓库：<https://github.com/yeyangchen2009/xf-video>
+- 当前版本：0.1.0
+
+> 支持范围以实际验收结果为准（见下方验收状态表），不提供 DRM、验证码或权限绕过。
 
 ## 环境与安装
 
@@ -12,17 +16,14 @@
 - 登录由用户本人在 Edge 中扫码或完成，不导出 Cookie
 
 ```bash
-npm install
-npm link
+npm install -g xf-video
 xfv doctor
 ```
 
-发布后可使用：
+不想全局安装时可用 npx，显式指定版本与简写命令：
 
 ```bash
-npm install -g xf-video
-xfv doctor
-# 或 npx --yes --package xf-video@0.1.0 xfv doctor
+npx --yes --package xf-video@0.1.0 xfv doctor
 ```
 
 ## 使用
@@ -45,7 +46,7 @@ xfv get "https://example.com/video" --profile-dir "D:\existing-profile"
 
 `get` 的自动站点识别只覆盖明确已知域名；无法识别时使用 `--site`。短链接如果实际是 `confusion_index` 回放，请显式指定 `--site xiaoe-live`。
 
-### 当前验收状态
+### 0.1.0 验收状态
 
 | 通路 | 状态 |
 | --- | --- |
@@ -94,6 +95,17 @@ manifest 只接受 `url/site/name/index`，每项产出一个视频。任务串�
 - 不做全站课程发现、并发下载、HLS 续传、清晰度选择或 B 站下载。
 
 ## 开发
+
+从源码安装本地链接：
+
+```bash
+git clone https://github.com/yeyangchen2009/xf-video.git
+cd xf-video
+npm install
+npm link
+```
+
+测试与打包自检：
 
 ```bash
 npm test
