@@ -4,7 +4,7 @@
 
 - npm 包：<https://www.npmjs.com/package/xf-video>
 - 源码仓库：<https://github.com/yeyangchen2009/xf-video>
-- 当前版本：0.1.0
+- 当前版本：0.1.1
 
 > 支持范围以实际验收结果为准（见下方验收状态表），不提供 DRM、验证码或权限绕过。
 
@@ -23,7 +23,7 @@ xfv doctor
 不想全局安装时可用 npx，显式指定版本与简写命令：
 
 ```bash
-npx --yes --package xf-video@0.1.0 xfv doctor
+npx --yes --package xf-video@0.1.1 xfv doctor
 ```
 
 ## 使用
@@ -46,7 +46,7 @@ xfv get "https://example.com/video" --profile-dir "D:\existing-profile"
 
 `get` 的自动站点识别只覆盖明确已知域名；无法识别时使用 `--site`。短链接如果实际是 `confusion_index` 回放，请显式指定 `--site xiaoe-live`。
 
-### 0.1.0 验收状态
+### 验收状态
 
 | 通路 | 状态 |
 | --- | --- |
@@ -56,7 +56,7 @@ xfv get "https://example.com/video" --profile-dir "D:\existing-profile"
 | 小鹅通直播回放 | `confusion_index` 解混淆和清单重建有固定向量测试，等待授权回放端到端验收 |
 | aipoju 跳飞书 | 域名、卡片、序号和新页/同页跳转逻辑已接入，等待真实列表端到端验收 |
 
-未完成真实端到端验收的通路不代表不可用，但 0.1.0 不把它表述成“已完整支持”。
+未完成真实端到端验收的通路不代表不可用，但不把它表述成“已完整支持”。
 
 ### JSON 批量
 
@@ -90,7 +90,7 @@ manifest 只接受 `url/site/name/index`，每项产出一个视频。任务串�
 - HLS 通过仅监听 `127.0.0.1` 随机端口的本机代理逐请求转发，清单、key、MAP 和分片按原始地址解析；同源保留鉴权，跨 origin 删除凭证，远程签名 URL 不进入 FFmpeg 参数。
 - 正式文件通过 FFprobe 和 FFmpeg 整段解码后，以不覆盖已有文件的方式发布；已存在且有效的文件会跳过，损坏文件不会被自动覆盖。
 - 日志默认移除媒体签名参数、鉴权头以及本机代理 URL 中的随机 token/资源 ID。登录态、媒体签名和下载内容仍属于本机敏感数据，不要共享 profile 或输出目录。
-- 0.1.0 的输出冲突预留只在单个进程内生效；不要同时启动两个 `xfv` 进程写同一输出路径。跨进程 lockfile 留待后续版本，正式文件的不覆盖发布仍是最后兜底。
+- 当前版本的输出冲突预留只在单个进程内生效；不要同时启动两个 `xfv` 进程写同一输出路径。跨进程 lockfile 留待后续版本，正式文件的不覆盖发布仍是最后兜底。
 - `XF_VIDEO_TEMP` 目前用于 `doctor` 的临时 Edge 预检 profile；正常下载的 HLS 清单只保存在代理内存中。
 - 不做全站课程发现、并发下载、HLS 续传、清晰度选择或 B 站下载。
 

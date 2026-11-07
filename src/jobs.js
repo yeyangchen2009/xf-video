@@ -143,4 +143,4 @@ function expandGet(url, options) {
   }));
 }
 
-module.exports = { detectSite, validateJob, expandGet, runJobs, explicitTarget, reserveOutput };
+module.exports = { parseHttpUrl, detectSite, validateJob, expandGet, runJobs, explicitTarget, reserveOutput };
