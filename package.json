@@ -1,0 +1,34 @@
+{
+  "name": "xf-video",
+  "version": "0.1.0",
+  "description": "Download authorized Xiaoe and Feishu videos with a persistent browser profile",
+  "author": "yeyangchen2009",
+  "license": "MIT",
+  "private": false,
+  "type": "commonjs",
+  "bin": {
+    "xf-video": "./bin/xf-video.js",
+    "xfv": "./bin/xf-video.js"
+  },
+  "files": [
+    "bin/",
+    "src/"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "test:edge": "node --test test/edge.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "playwright-core": "^1.65.0"
+  },
+  "keywords": [
+    "xiaoe",
+    "feishu",
+    "video",
+    "download",
+    "cli"
+  ]
+}
