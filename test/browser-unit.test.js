@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { classifyMedia, createSniffer } = require('../src/browser/sniffer');
+const { classifyMedia, createSniffer, detectAccessBlock } = require('../src/browser/sniffer');
 const { sanitizeMediaHeaders, headersForRedirect } = require('../src/download/headers');
 const { parseContentRange } = require('../src/download/http');
 
@@ -55,4 +55,27 @@ test('Content-Range 严格解析', () => {
   assert.deepEqual(parseContentRange('bytes 10-19/100'), { start: 10, end: 19, total: 100 });
   assert.deepEqual(parseContentRange('bytes */100'), { start: null, end: null, total: 100 });
   assert.equal(parseContentRange('bytes nope'), null);
+});
+
+test('detectAccessBlock 识别 goods_detail 落地页与「前往购买」文案，正常页面放行', async () => {
+  const goodsPage = {
+    url: () => 'https://tenant.h5.xiaoeknow.com/v1/goods/goods_detail/p_demo',
+    evaluate: async () => '',
+  };
+  assert.match(await detectAccessBlock(goodsPage), /商品详情页/);
+
+  const buyPage = {
+    url: () => 'https://tenant.h5.xiaoeknow.com/v4/course/alive/l_demo',
+    evaluate: async () => '限时优惠 前往购买 立即订阅',
+  };
+  assert.match(await detectAccessBlock(buyPage), /购买/);
+
+  const normalPage = {
+    url: () => 'https://tenant.h5.xiaoeknow.com/p/course/video/v_demo',
+    evaluate: async () => '课程正文与播放器',
+  };
+  assert.equal(await detectAccessBlock(normalPage), null);
+
+  const closedPage = { url: () => { throw new Error('page closed'); }, evaluate: async () => '' };
+  assert.equal(await detectAccessBlock(closedPage), null);
 });

@@ -13,6 +13,7 @@ class DownloadError extends Error {
     super(message, options);
     this.name = 'DownloadError';
     this.exitCode = 1;
+    if (options?.code) this.code = options.code;
   }
 }
 

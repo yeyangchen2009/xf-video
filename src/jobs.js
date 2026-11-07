@@ -110,9 +110,13 @@ async function runJobs(jobs, options) {
           const mb = (bytes / 1024 / 1024).toFixed(1);
           console.log(total ? `已下载 ${mb} MB / ${(total / 1024 / 1024).toFixed(1)} MB` : `已下载 ${mb} MB`);
         };
-        const downloaded = resolved.media.kind === 'mp4'
-          ? await downloadHttp(resolved.media, target, { ...options, onProgress })
-          : await downloadHls(resolved.media, target, options.tools, options);
+        let downloaded;
+        if (resolved.media.kind === 'mp4') {
+          downloaded = await downloadHttp(resolved.media, target, { ...options, onProgress });
+        } else {
+          console.log('正在下载 HLS 并封装为 MP4（先写 .part.mp4，长视频可能需要数十分钟）...');
+          downloaded = await downloadHls(resolved.media, target, options.tools, options);
+        }
         const final = await finalizeMedia(downloaded.file, target, options.tools, options);
         console.log(`完成: ${final.file}（${(final.duration / 60).toFixed(1)} 分钟）`);
         results.push({ status: 'ok', file: target });
