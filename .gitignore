@@ -1,0 +1,15 @@
+node_modules/
+downloads/
+profiles/
+.env
+.env.*
+*.log
+*.part.mp4
+*.part.json
+*.m3u8
+*.mp4
+*.ts
+coverage/
+.nyc_output/
+test/real/local.*
+real-jobs.json
