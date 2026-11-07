@@ -18,7 +18,7 @@ try {
 } finally {
   Module._load = originalLoad;
 }
-const { confusionDecode, rebuildM3u8 } = live;
+const { confusionDecode, rebuildM3u8, shouldUseStandardHls, STANDARD_HLS_GRACE_MS } = live;
 
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
 
@@ -93,4 +93,71 @@ test('rebuildM3u8 给 TS 统一追加签名，但不修改非 TS 行', () => {
   const input = '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin?old=1"\n0001.ts?old=1\n#EXT-X-ENDLIST\n';
   const result = rebuildM3u8(input, '/live/', '?sig=synthetic');
   assert.equal(result, '#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI="key.bin?old=1"\n/live/0001.ts?sig=synthetic\n#EXT-X-ENDLIST\n');
+});
+
+test('shouldUseStandardHls 仅在无 confusion、标准 m3u8 出现且超过宽限期时成立', () => {
+  const standardAt = 1000;
+  const base = {
+    hasConfusion: false, standardHlsAt: standardAt,
+    now: standardAt + STANDARD_HLS_GRACE_MS, graceMs: STANDARD_HLS_GRACE_MS,
+  };
+  assert.equal(shouldUseStandardHls(base), true);
+  assert.equal(shouldUseStandardHls({ ...base, hasConfusion: true }), false);
+  assert.equal(shouldUseStandardHls({ ...base, standardHlsAt: null }), false);
+  assert.equal(shouldUseStandardHls({ ...base, now: standardAt + STANDARD_HLS_GRACE_MS - 1 }), false);
+  assert.equal(shouldUseStandardHls({ ...base, graceMs: 0 }), true);
+});
+
+test('resolveXiaoeLive 截获标准 m3u8 且宽限期无 confusion 时回退标准嗅探', async () => {
+  const path = require('node:path');
+  const { EventEmitter } = require('node:events');
+  const livePath = require.resolve('../src/sites/xiaoe-live');
+  const cached = require.cache[livePath];
+  delete require.cache[livePath];
+
+  const page = new EventEmitter();
+  const fakeResponse = {
+    url: () => 'https://encrypt-k-vod.xet.tech/hash/playlist_eof.m3u8?sign=secret',
+    headers: () => ({ 'content-type': 'application/vnd.apple.mpegurl' }),
+    request: () => ({ resourceType: () => 'media', allHeaders: async () => ({}) }),
+  };
+  Object.assign(page, {
+    url: () => 'https://tenant.h5.xiaoeknow.com/v4/course/alive/l_demo',
+    goto: async () => queueMicrotask(() => page.emit('response', fakeResponse)),
+    title: async () => '回放标题',
+    isClosed: () => false,
+    waitForTimeout: async () => {},
+    close: async () => {},
+    evaluate: async () => '正常回放页面',
+    frames: () => [],
+  });
+  const context = { newPage: async () => page };
+
+  const previousLoad = Module._load;
+  let fallbackCalledWith = null;
+  Module._load = function (request, parent, isMain) {
+    if (request === 'playwright-core') return { chromium: {} };
+    if (parent?.filename?.endsWith(path.join('src', 'sites', 'xiaoe-live.js')) && request === './xiaoe') {
+      return {
+        resolveXiaoe: async (ctx, job) => {
+          fallbackCalledWith = { ctx, job };
+          return { media: { kind: 'hls' }, title: '标准回退标题' };
+        },
+      };
+    }
+    return previousLoad.call(this, request, parent, isMain);
+  };
+  try {
+    const reloaded = require('../src/sites/xiaoe-live');
+    const job = { url: page.url() };
+    const result = await reloaded.resolveXiaoeLive(context, job, { liveFallbackGraceMs: 0 });
+    assert.equal(fallbackCalledWith.ctx, context);
+    assert.equal(fallbackCalledWith.job, job);
+    assert.equal(result.title, '标准回退标题');
+    assert.equal(result.media.kind, 'hls');
+  } finally {
+    Module._load = previousLoad;
+    delete require.cache[livePath];
+    if (cached) require.cache[livePath] = cached;
+  }
 });

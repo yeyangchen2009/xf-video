@@ -41,7 +41,11 @@ function run(command, args, options = {}) {
       child.stdin.on('error', () => {});
       child.stdin.end(options.input);
     }
-    child.stdout.on('data', chunk => { stdout += chunk.toString(); });
+    child.stdout.on('data', chunk => {
+      stdout += chunk.toString();
+      if (stdout.length > 65536) stdout = stdout.slice(-65536);
+      if (options.onStdout) options.onStdout(chunk);
+    });
     child.stderr.on('data', chunk => {
       stderr += chunk.toString();
       if (stderr.length > 65536) stderr = stderr.slice(-65536);

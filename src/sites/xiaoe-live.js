@@ -3,11 +3,25 @@
 const crypto = require('node:crypto');
 const { DownloadError } = require('../errors');
 const { startPlayback } = require('../browser/session');
-const { isLoginPage } = require('../browser/sniffer');
+const { classifyMedia, isLoginPage, detectAccessBlock, ACCESS_BLOCK_HINT } = require('../browser/sniffer');
 const { fetchWithRedirects } = require('../download/http');
 const { sanitizeMediaHeaders } = require('../download/headers');
+const { resolveXiaoe } = require('./xiaoe');
 
 const ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
+
+// 新型直播回放（形态 A）不发 confusion_index，直接请求明文标准 m3u8。
+// 截获标准 HLS 后再给混淆形态一个宽限期，仍无 confusion 即判定回退标准嗅探。
+const STANDARD_HLS_GRACE_MS = 15000;
+const STANDARD_HLS_CODE = 'XIAOE_STANDARD_HLS';
+
+function shouldUseStandardHls({ hasConfusion, standardHlsAt, now, graceMs = STANDARD_HLS_GRACE_MS }) {
+  return !hasConfusion && standardHlsAt !== null && now - standardHlsAt >= graceMs;
+}
+
+function standardHlsError() {
+  return new DownloadError('回放未使用 confusion 混淆清单，按标准 HLS 形态处理', { code: STANDARD_HLS_CODE });
+}
 
 function md5(value) {
   return crypto.createHash('md5').update(value, 'utf8').digest('hex');
@@ -63,27 +77,44 @@ async function captureLive(context, job, options = {}) {
   const page = await context.newPage();
   const confusion = [];
   let tsUrl = null;
+  let standardHlsAt = null;
   page.on('response', response => {
     const url = response.url();
     if (url.includes('confusion_index') && !confusion.some(item => item.url === url)) {
       confusion.push({ url, request: response.request() });
     }
     if (!tsUrl && /\d+_\d+_\d+\.ts$/.test(new URL(url).pathname)) tsUrl = url;
+    if (standardHlsAt === null && !url.includes('confusion_index')) {
+      try {
+        if (classifyMedia(url, response.headers()['content-type'], response.request().resourceType()) === 'hls') {
+          standardHlsAt = Date.now();
+        }
+      } catch {}
+    }
   });
   try {
     await page.goto(job.url, { waitUntil: 'domcontentloaded', timeout: 60000 });
     if (isLoginPage(page.url())) throw new DownloadError('小鹅通登录态已失效，请先执行 xfv login');
+    const blockReason = await detectAccessBlock(page);
+    if (blockReason) throw new DownloadError(`${blockReason}。${ACCESS_BLOCK_HINT}`);
     const deadline = Date.now() + 120000;
+    const graceMs = options.liveFallbackGraceMs ?? STANDARD_HLS_GRACE_MS;
     let nextPlay = Date.now() + 10000;
     while ((!confusion.length || !tsUrl) && Date.now() < deadline) {
       if (page.isClosed()) throw new DownloadError('回放嗅探期间页面被关闭');
+      if (shouldUseStandardHls({ hasConfusion: confusion.length > 0, standardHlsAt, now: Date.now(), graceMs })) {
+        throw standardHlsError();
+      }
       if (Date.now() >= nextPlay) {
         await startPlayback(page);
         nextPlay = Date.now() + 20000;
       }
       await page.waitForTimeout(1000);
     }
-    if (!confusion.length || !tsUrl) throw new DownloadError('未同时截获 confusion_index 和真实 TS 请求');
+    if (!confusion.length || !tsUrl) {
+      if (standardHlsAt !== null) throw standardHlsError();
+      throw new DownloadError('未同时截获 confusion_index 和真实 TS 请求');
+    }
     const confusionUrl = confusion[0].url;
     const appid = confusionUrl.split('/confusion_index')[0].replace(/\/$/, '').split('/').pop();
     const parsedTs = new URL(tsUrl);
@@ -107,14 +138,27 @@ async function captureLive(context, job, options = {}) {
 }
 
 async function resolveXiaoeLive(context, job, options = {}) {
-  const result = await captureLive(context, job, options);
-  return {
-    media: {
-      kind: 'hls', url: result.baseUrl, baseUrl: result.baseUrl,
-      playlistText: result.playlistText, headers: result.headers,
-    },
-    title: result.title,
-  };
+  try {
+    const result = await captureLive(context, job, options);
+    return {
+      media: {
+        kind: 'hls', url: result.baseUrl, baseUrl: result.baseUrl,
+        playlistText: result.playlistText, headers: result.headers,
+      },
+      title: result.title,
+    };
+  } catch (error) {
+    // 形态 A 标准 HLS 回放与混淆回放共用 /v4/course/alive/ 路径，
+    // 按页面实际发出的媒体请求回退到标准小鹅通嗅探，而非只凭 URL 定死适配器。
+    if (error?.code === STANDARD_HLS_CODE) {
+      console.log('检测到标准 HLS 型直播回放，自动切换标准小鹅通嗅探...');
+      return resolveXiaoe(context, job);
+    }
+    throw error;
+  }
 }
 
-module.exports = { confusionDecode, rebuildM3u8, resolveXiaoeLive };
+module.exports = {
+  confusionDecode, rebuildM3u8, resolveXiaoeLive,
+  shouldUseStandardHls, STANDARD_HLS_GRACE_MS, STANDARD_HLS_CODE,
+};

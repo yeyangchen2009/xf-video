@@ -4,7 +4,7 @@
 
 - npm 包：<https://www.npmjs.com/package/xf-video>
 - 源码仓库：<https://github.com/yeyangchen2009/xf-video>
-- 当前版本：0.1.1
+- 当前版本：0.1.2
 
 > 支持范围以实际验收结果为准（见下方验收状态表），不提供 DRM、验证码或权限绕过。
 
@@ -23,7 +23,7 @@ xfv doctor
 不想全局安装时可用 npx，显式指定版本与简写命令：
 
 ```bash
-npx --yes --package xf-video@0.1.1 xfv doctor
+npx --yes --package xf-video@0.1.2 xfv doctor
 ```
 
 ## 使用
@@ -44,7 +44,7 @@ xfv get "https://example.com/list" --site aipoju --index 1,3
 xfv get "https://example.com/video" --profile-dir "D:\existing-profile"
 ```
 
-`get` 的自动站点识别只覆盖明确已知域名；无法识别时使用 `--site`。短链接如果实际是 `confusion_index` 回放，请显式指定 `--site xiaoe-live`。
+`get` 的自动站点识别只覆盖明确已知域名；无法识别时使用 `--site`。`/v4/course/alive/` 回放链接默认进入直播适配器：页面发标准 m3u8 时自动回退标准嗅探，只有 `confusion_index` 混淆回放才走解混淆路径，通常不需要手动指定 `--site`。
 
 ### 验收状态
 
@@ -52,11 +52,14 @@ xfv get "https://example.com/video" --profile-dir "D:\existing-profile"
 | --- | --- |
 | 飞书妙记 MP4 | 已用授权样本完成端到端验收：原生嗅探、断流保留、重试和 538,519,978 字节视频的 FFprobe/整段解码均通过。该服务支持 Range 但不返回 ETag/Last-Modified，因此重试按安全策略全量重下；带校验器的 206 追加由本地自动化覆盖 |
 | 通用 HLS/AES | 本地动态清单已覆盖鉴权、相对 key/MAP、跨域凭证隔离、401、短视频和完整解码；真实飞书 HLS 样本仍待补验 |
-| 小鹅通标准课 | 站点适配器与 HLS 下载核心已接入，等待授权页面端到端验收 |
-| 小鹅通直播回放 | `confusion_index` 解混淆和清单重建有固定向量测试，等待授权回放端到端验收 |
+| 小鹅通标准课 | 已用授权样本完成端到端验收：HLS AES-128 嗅探、key 与分片鉴权、461,844,894 字节（99.4 分钟）视频的 FFprobe/整段解码均通过 |
+| 小鹅通直播回放（标准 HLS 型） | 已用授权专栏样本完成端到端验收：28 场 alive 回放均为 `encrypt-k-vod` 标准 m3u8，适配器按页面实际媒体请求自动回退标准嗅探，968,504,696 字节（49.1 分钟）样本整段解码通过 |
+| 小鹅通直播回放（confusion 混淆型） | `confusion_index` 解混淆和清单重建有固定向量测试，并在 2026-07 旧样本上验证过一次；第二个授权样本待补验 |
 | aipoju 跳飞书 | 域名、卡片、序号和新页/同页跳转逻辑已接入，等待真实列表端到端验收 |
 
 未完成真实端到端验收的通路不代表不可用，但不把它表述成“已完整支持”。
+
+HLS 下载与整段解码期间，FFmpeg 通过 `-progress` 每 5 秒上报一次已处理时间与速度；进入 FFprobe、解码等阶段时另有提示，长任务不再零输出。账号无权播放时（服务端重写到 `goods_detail` 商品页或页面只有「前往购买」），会直接提示登录或购买问题，而不是笼统报“未嗅探到媒体”。
 
 ### JSON 批量
 

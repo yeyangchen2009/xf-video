@@ -191,3 +191,12 @@ test('正式文件已存在时原子发布会失败且保留原文件', async ()
   await assert.rejects(finalizeMedia(part, target, tools, { timeout: 60000 }), /未覆盖/);
   assert.deepEqual(await fsp.readFile(target), before);
 });
+
+test('run 通过 onStdout 透传 ffmpeg -progress 流', async () => {
+  const chunks = [];
+  await run(tools.ffmpeg, [
+    '-y', '-v', 'error', '-nostats', '-progress', 'pipe:1',
+    '-f', 'lavfi', '-i', 'testsrc=size=64x48:rate=5', '-t', '1', '-f', 'null', '-',
+  ], { timeout: 30000, onStdout: chunk => chunks.push(chunk.toString()) });
+  assert.ok(chunks.join('').includes('progress=end'));
+});

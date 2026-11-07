@@ -73,12 +73,34 @@ function isLoginPage(url) {
   return /login(?:\/auth)?|\/login/i.test(new URL(url).pathname);
 }
 
+const ACCESS_BLOCK_HINT = '若账号已购买，请先对同一 profile 执行 xfv login 刷新登录态；未购买的内容无法下载';
+
+// 未授权时小鹅通服务端会把播放页重写到 /v1/goods/goods_detail/ 商品页，
+// 页面只有「前往购买」、没有任何 video 元素。返回可读原因，检测失败时返回 null。
+async function detectAccessBlock(page) {
+  let url;
+  try { url = page.url(); } catch { return null; }
+  let pathname;
+  try { pathname = new URL(url).pathname; } catch { return null; }
+  if (pathname.includes('goods_detail')) {
+    return '页面跳转到商品详情页，当前账号无播放权限或登录态已失效';
+  }
+  let text = '';
+  try {
+    text = await page.evaluate(() => (document.body && document.body.innerText) || '');
+  } catch { return null; }
+  if (text.includes('前往购买')) return '页面要求购买后才能播放，当前账号无权限';
+  return null;
+}
+
 async function openAndSniff(context, url, options = {}) {
   const sniffer = createSniffer(context, { watchExisting: false });
   const page = await context.newPage();
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: options.navigationTimeout || 60000 });
     if (isLoginPage(page.url())) throw new DownloadError('登录态已失效，请先对同一 profile 执行 xfv login');
+    const blockReason = await detectAccessBlock(page);
+    if (blockReason) throw new DownloadError(`${blockReason}。${ACCESS_BLOCK_HINT}`);
     const deadline = Date.now() + (options.timeout || 90000);
     const passiveUntil = Date.now() + (options.passiveMs ?? 20000);
     let nextPlay = passiveUntil;
@@ -102,4 +124,4 @@ async function openAndSniff(context, url, options = {}) {
   }
 }
 
-module.exports = { classifyMedia, createSniffer, openAndSniff, isLoginPage };
+module.exports = { classifyMedia, createSniffer, openAndSniff, isLoginPage, detectAccessBlock, ACCESS_BLOCK_HINT };
